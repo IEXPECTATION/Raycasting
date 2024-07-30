@@ -27,10 +27,11 @@ class Player {
     return;
   }
   const player = new Player(400, 400);
+  const keyStatus = new Set<string>();
 
-  RegisterEvents(player);
+  RegisterEvents(keyStatus);
 
-  UpdateScreen(ctx, player);
+  UpdateScreen(ctx, keyStatus, player);
 })();
 
 function GetCanvasContext() {
@@ -62,14 +63,15 @@ function DrawMap(ctx: CanvasRenderingContext2D, player: Player) {
   ctx.resetTransform()
 }
 
-function UpdateScreen(ctx: CanvasRenderingContext2D, player: Player) {
+function UpdateScreen(ctx: CanvasRenderingContext2D, keyStatus: Set<string>, player: Player) {
   ctx.clearRect(0, 0, MAP_MAX_WIDTH, MAP_MAX_HEIGHT);
   if (ShouldShowMap) {
     DrawMap(ctx, player);
   }
 
+  EventHandler(keyStatus, player);
   requestAnimationFrame(() => {
-    UpdateScreen(ctx, player);
+    UpdateScreen(ctx, keyStatus, player);
   });
 }
 
@@ -118,27 +120,37 @@ function ValidatePlayer(player: Player) {
   }
 }
 
-function RegisterEvents(player: Player) {
+function RegisterEvents(keyStatus: Set<string>) {
   document.addEventListener('keydown', (event: KeyboardEvent) => {
-    switch (event.key) {
+    keyStatus.add(event.key);
+  });
+
+  document.addEventListener('keyup', (event: KeyboardEvent) => {
+    keyStatus.delete(event.key);
+  });
+}
+
+function EventHandler(keyStatus: Set<string>, player: Player) {
+  for (let k of keyStatus) {
+    switch (k) {
       case 'w': {
-        let point = RotatePoint(0, 5, player.Direction);
+        let point = RotatePoint(0, 1, player.Direction);
         player.X += point.X;
         player.Y += point.Y;
       }
         break;
       case 's': {
-        let point = RotatePoint(0, -5, player.Direction);
+        let point = RotatePoint(0, -1, player.Direction);
         player.X += point.X;
         player.Y += point.Y;
       }
         break;
       case 'a': {
-        player.Direction -= 0.1;
+        player.Direction -= 0.01;
       }
         break;
       case 'd': {
-        player.Direction += 0.1;
+        player.Direction += 0.01;
       }
         break;
       case 'm': {
@@ -146,11 +158,6 @@ function RegisterEvents(player: Player) {
       }
         break;
     }
-    console.log(player.Direction);
-    ValidatePlayer(player);
-  })
-}
-
-function EventHandler() {
-
+  }
+  ValidatePlayer(player);
 }
