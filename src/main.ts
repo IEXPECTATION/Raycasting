@@ -6,16 +6,37 @@ const TWO_THIRD_PI = Math.PI * 3 / 2;
 const TWO_PI = Math.PI * 2;
 let ShouldShowMap = true;
 
+const map = [
+  [1, 1, 1, 1, 1, 1, 1, 1],
+  [1, 0, 0, 0, 0, 1, 0, 1],
+  [1, 1, 0, 0, 1, 0, 0, 1],
+  [1, 0, 0, 0, 0, 1, 0, 1],
+  [1, 0, 0, 0, 0, 0, 0, 1],
+  [1, 0, 1, 0, 0, 0, 0, 1],
+  [1, 1, 0, 0, 0, 1, 0, 1],
+  [1, 1, 1, 1, 1, 1, 1, 1],
+];
+
 class Player {
   constructor(x: number = 0, y: number = 0) {
     this.X = x;
     this.Y = y;
-    this.Direction = 1;
+    this.Direction = 0;
+    this.Velocity = 0;
+    this.Turn = 0;
   }
 
   X: number;
   Y: number;
   Direction: number;  // min: 0, max: 2
+  Velocity: number;
+  Turn: number;
+
+  static WALK_SPEED: number = 0.2;
+  static RUN_SPEED: number = this.WALK_SPEED;
+  static RUN_MAX_SPEED: number = 0.4;
+  static ACCELERATION: number = 5;
+  static TRUN_RATE: number = 0.001;
 }
 
 (() => {
@@ -29,9 +50,9 @@ class Player {
   const player = new Player(400, 400);
   const keyStatus = new Set<string>();
 
-  RegisterEvents(keyStatus);
-
-  UpdateScreen(ctx, keyStatus, player);
+  RegisterEvents(player);
+  const date = Date.now();
+  UpdateScreen(ctx, keyStatus, player, date);
 })();
 
 function GetCanvasContext() {
@@ -43,8 +64,19 @@ function GetCanvasContext() {
 }
 
 function DrawMap(ctx: CanvasRenderingContext2D, player: Player) {
-  ctx.scale(0.4, 0.4);
-  ctx.translate(30, 30);
+  let oldStyle = ctx.fillStyle;
+  for (let i = 0; i < map.length; i++) {
+    for (let ii = 0; ii < map[i].length; ii++) {
+      if (map[i][ii] == 0) {
+        ctx.fillStyle = "ghostwhite";
+      } else {
+        ctx.fillStyle = "gray";
+      }
+      ctx.fillRect(i * MAP_EACH_WIDTH, ii * MAP_EACH_HEIGHT, MAP_EACH_WIDTH, MAP_EACH_HEIGHT);
+    }
+  }
+  ctx.fillStyle = oldStyle;
+
   for (let i = 0; i <= MAP_MAX_HEIGHT; i += MAP_EACH_HEIGHT) {
     ctx.beginPath();
     ctx.moveTo(0, i);
@@ -58,20 +90,33 @@ function DrawMap(ctx: CanvasRenderingContext2D, player: Player) {
     ctx.lineTo(i, MAP_MAX_HEIGHT);
     ctx.stroke();
   }
-
-  DrawPlayer(ctx, player);
-  ctx.resetTransform()
 }
 
-function UpdateScreen(ctx: CanvasRenderingContext2D, keyStatus: Set<string>, player: Player) {
+function UpdateScreen(ctx: CanvasRenderingContext2D, keyStatus: Set<string>, player: Player, oldDate: number) {
   ctx.clearRect(0, 0, MAP_MAX_WIDTH, MAP_MAX_HEIGHT);
+
+  const date = Date.now();
+  const dt = date - oldDate;
+
+  // Show fps firstly.
+  ctx.fillText(`FPS: ${Math.trunc(1000 / dt)}`, 10, 10);
+
   if (ShouldShowMap) {
+    ctx.scale(0.4, 0.4);
+    ctx.translate(30, 30);
+
     DrawMap(ctx, player);
+    ValidatePlayer(player, dt);
+    DrawPlayer(ctx, player);
+
+    ctx.resetTransform()
   }
 
-  EventHandler(keyStatus, player);
+
+
+
   requestAnimationFrame(() => {
-    UpdateScreen(ctx, keyStatus, player);
+    UpdateScreen(ctx, keyStatus, player, date);
   });
 }
 
@@ -87,12 +132,12 @@ function DrawPlayer(ctx: CanvasRenderingContext2D, player: Player) {
   let oldWidth = ctx.lineWidth;
   ctx.strokeStyle = 'red';
   ctx.lineWidth = 8;
-  let left = RotatePoint(-27, 0, player.Direction);
-  let right = RotatePoint(27, 0, player.Direction);
+  let left = RotatePoint(0, -20, player.Direction);
+  let right = RotatePoint(0, 20, player.Direction);
   ctx.moveTo(left.X + player.X, left.Y + player.Y);
   ctx.lineTo(right.X + player.X, right.Y + player.Y);
   ctx.stroke();
-  right = RotatePoint(0, 25, player.Direction);
+  right = RotatePoint(25, 0, player.Direction);
   ctx.moveTo(player.X, player.Y);
   ctx.lineTo(right.X + player.X, right.Y + player.Y);
   ctx.stroke();
@@ -100,64 +145,70 @@ function DrawPlayer(ctx: CanvasRenderingContext2D, player: Player) {
   ctx.lineWidth = oldWidth;
 }
 
-function ValidatePlayer(player: Player) {
-  if (player.X < 0) {
-    player.X = 0;
-  } else if (player.X > MAP_MAX_WIDTH) {
-    player.X = MAP_MAX_WIDTH;
+function ValidatePlayer(player: Player, dt: number) {
+  let displacement = player.Velocity * dt;
+  let point = RotatePoint(displacement, 0, player.Direction);
+  player.Direction += player.Turn * dt;
+
+  // collision detection
+  let indices = CoordianceToIndex(player.X + point.X, player.Y);
+  if (map[indices.I][indices.II] == 0) {
+    player.X += point.X;
   }
 
-  if (player.Y < 0) {
-    player.Y = 0;
-  } else if (player.Y > MAP_MAX_HEIGHT) {
-    player.Y = MAP_MAX_HEIGHT;
-  }
-
-  if (player.Direction < 0) {
-    player.Direction += 2;
-  } else if (player.Direction > 2) {
-    player.Direction -= 2;
+  indices = CoordianceToIndex(player.X, player.Y + point.Y);
+  if (map[indices.I][indices.II] == 0) {
+    player.Y += point.Y;
   }
 }
 
-function RegisterEvents(keyStatus: Set<string>) {
+function CoordianceToIndex(x: number, y: number): { I: number, II: number } {
+  return { I: Math.trunc(x / MAP_EACH_WIDTH), II: Math.trunc(y / MAP_EACH_HEIGHT) };
+}
+
+// TODO: Should we implement this function?
+function IndexToCoordiance(i: number, ii: number): { X: number, Y: number } {
+  throw new Error("Not Implemented!");
+}
+
+function RegisterEvents(player: Player) {
   document.addEventListener('keydown', (event: KeyboardEvent) => {
-    keyStatus.add(event.key);
+    switch (event.key) {
+      case 'w':
+        player.Velocity = Player.WALK_SPEED;
+        break;
+      case 's':
+        player.Velocity = -Player.WALK_SPEED;
+        break;
+      case 'a':
+        player.Turn = -Player.TRUN_RATE;
+        break;
+      case 'd':
+        player.Turn = Player.TRUN_RATE;
+        break;
+      case 'm':
+        ShouldShowMap = !ShouldShowMap;
+        break;
+    }
   });
 
   document.addEventListener('keyup', (event: KeyboardEvent) => {
-    keyStatus.delete(event.key);
-  });
-}
-
-function EventHandler(keyStatus: Set<string>, player: Player) {
-  for (let k of keyStatus) {
-    switch (k) {
-      case 'w': {
-        let point = RotatePoint(0, 1, player.Direction);
-        player.X += point.X;
-        player.Y += point.Y;
-      }
+    switch (event.key) {
+      case 'w':
+        player.Velocity = 0;
         break;
-      case 's': {
-        let point = RotatePoint(0, -1, player.Direction);
-        player.X += point.X;
-        player.Y += point.Y;
-      }
+      case 's':
+        player.Velocity = 0;
         break;
-      case 'a': {
-        player.Direction -= 0.01;
-      }
+      case 'a':
+        player.Turn = 0;
         break;
-      case 'd': {
-        player.Direction += 0.01;
-      }
+      case 'd':
+        player.Turn = 0;
         break;
-      case 'm': {
-        ShouldShowMap = !ShouldShowMap;
-      }
+      case 'm':
+        // ShouldShowMap = !ShouldShowMap;
         break;
     }
-  }
-  ValidatePlayer(player);
+  });
 }
