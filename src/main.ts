@@ -21,22 +21,19 @@ class Player {
   constructor(x: number = 0, y: number = 0) {
     this.X = x;
     this.Y = y;
-    this.Direction = 0;
-    this.Velocity = 0;
-    this.Turn = 0;
   }
 
   X: number;
   Y: number;
-  Direction: number;  // min: 0, max: 2
-  Velocity: number;
-  Turn: number;
+  Angle: number = 0;  // min: 0, max: 2
+  Velocity: number = 0;
+  Turn: number = 0;
 
   static WALK_SPEED: number = 0.2;
   static RUN_SPEED: number = this.WALK_SPEED;
   static RUN_MAX_SPEED: number = 0.4;
   static ACCELERATION: number = 5;
-  static TRUN_RATE: number = 0.001;
+  static TRUN_RATE: number = 0.0001;
 }
 
 (() => {
@@ -63,8 +60,9 @@ function GetCanvasContext() {
   return (canvas as HTMLCanvasElement).getContext("2d");
 }
 
-function DrawMap(ctx: CanvasRenderingContext2D, player: Player) {
+function DrawMap(ctx: CanvasRenderingContext2D) {
   let oldStyle = ctx.fillStyle;
+  ctx.beginPath();
   for (let i = 0; i < map.length; i++) {
     for (let ii = 0; ii < map[i].length; ii++) {
       if (map[i][ii] == 0) {
@@ -98,6 +96,8 @@ function UpdateScreen(ctx: CanvasRenderingContext2D, keyStatus: Set<string>, pla
   const date = Date.now();
   const dt = date - oldDate;
 
+  ValidatePlayer(player, dt);
+
   // Show fps firstly.
   ctx.fillText(`FPS: ${Math.trunc(1000 / dt)}`, 10, 10);
 
@@ -105,60 +105,129 @@ function UpdateScreen(ctx: CanvasRenderingContext2D, keyStatus: Set<string>, pla
     ctx.scale(0.4, 0.4);
     ctx.translate(30, 30);
 
-    DrawMap(ctx, player);
-    ValidatePlayer(player, dt);
+    DrawMap(ctx);
     DrawPlayer(ctx, player);
 
     ctx.resetTransform()
   }
 
-
-
+  DrawWorld(ctx, player.X, player.Y, player.Angle);
 
   requestAnimationFrame(() => {
     UpdateScreen(ctx, keyStatus, player, date);
   });
 }
 
-function RotatePoint(x: number, y: number, direction: number): { X: number, Y: number } {
-  let newX = x * Math.cos(PI * direction) - y * Math.sin(PI * direction);
-  let newY = x * Math.sin(PI * direction) + y * Math.cos(PI * direction);
+function RotatePoint(x: number, y: number, angle: number): { X: number, Y: number } {
+  let newX = x * Math.cos(PI * angle) - y * Math.sin(PI * angle);
+  let newY = x * Math.sin(PI * angle) + y * Math.cos(PI * angle);
   return { X: newX, Y: newY };
 }
 
 function DrawPlayer(ctx: CanvasRenderingContext2D, player: Player) {
-  ctx.beginPath();
   let oldStyle = ctx.strokeStyle;
   let oldWidth = ctx.lineWidth;
+
+  ctx.beginPath();
   ctx.strokeStyle = 'red';
   ctx.lineWidth = 8;
-  let left = RotatePoint(0, -20, player.Direction);
-  let right = RotatePoint(0, 20, player.Direction);
+
+  let left = RotatePoint(0, -20, player.Angle);
+  let right = RotatePoint(0, 20, player.Angle);
   ctx.moveTo(left.X + player.X, left.Y + player.Y);
   ctx.lineTo(right.X + player.X, right.Y + player.Y);
   ctx.stroke();
-  right = RotatePoint(25, 0, player.Direction);
+  right = RotatePoint(25, 0, player.Angle);
   ctx.moveTo(player.X, player.Y);
   ctx.lineTo(right.X + player.X, right.Y + player.Y);
   ctx.stroke();
+
   ctx.strokeStyle = oldStyle;
   ctx.lineWidth = oldWidth;
 }
 
-function ValidatePlayer(player: Player, dt: number) {
-  let displacement = player.Velocity * dt;
-  let point = RotatePoint(displacement, 0, player.Direction);
-  player.Direction += player.Turn * dt;
+function DrawWorld(ctx: CanvasRenderingContext2D, x: number, y: number, angle: number): void {
+  /**
+   * dx, dy
+   *    ------
+   *     \   |
+   *      \  |
+   *       \ |
+   *        \|  x, y 
+   */
 
-  // collision detection
-  let indices = CoordianceToIndex(player.X + point.X, player.Y);
-  if (map[indices.I][indices.II] == 0) {
-    player.X += point.X;
+  let dh = 0;
+  let dv = 0;
+
+  // Check the horizontal line
+  let cot = 1 / Math.tan(PI * angle);
+  let dy = 0, dx = 0, dxMax = 0, dyMax = 0;
+  let direction = Math.sin(PI * angle);
+  let i = Math.trunc(y / MAP_EACH_HEIGHT);
+  if (direction > 0) { // look down
+    dy = i * MAP_EACH_HEIGHT + MAP_EACH_HEIGHT;
+    dx = (dy - y) * cot + x;
+    dyMax = MAP_EACH_HEIGHT;
+    dxMax = dyMax * cot;
+    i = 0;
+  } else if (direction < 0) { // look up
+    dy = i * MAP_EACH_HEIGHT - 0.0001;
+    dx = (dy - y) * cot + x;
+    dyMax = -MAP_EACH_HEIGHT;
+    dxMax = dyMax * cot;
+    i = 0;
+  } else {
+    dy = y, dx = x; i = 8;
   }
 
-  indices = CoordianceToIndex(player.X, player.Y + point.Y);
+  console.log(y, dy, dy - y, cot, x, dx);
+  while (i < 8) {
+    if (dx > 0 && dx < MAP_MAX_WIDTH && dy > 0 && dy < MAP_MAX_WIDTH) {
+      let indices = CoordianceToIndex(dx, dy);
+      if (map[indices.I][indices.II] == 1) {
+        break;
+      }
+    }
+
+    dx += dxMax, dy += dyMax;
+    i++;
+  }
+
+  let oldStyle = ctx.strokeStyle;
+  ctx.scale(0.4, 0.4);
+  ctx.translate(30, 30);
+  ctx.beginPath()
+  ctx.strokeStyle = "green";
+  ctx.moveTo(x, y);
+  ctx.lineTo(dx, dy);
+  ctx.stroke();
+  ctx.strokeStyle = oldStyle;
+  ctx.resetTransform();
+  // Check hte vertical line
+}
+
+function ValidatePlayer(player: Player, dt: number) {
+  let displacement = player.Velocity * dt;
+  let vx = displacement * Math.cos(PI * player.Angle);
+  let vy = displacement * Math.sin(PI * player.Angle);
+
+  // collision detection
+  let indices = CoordianceToIndex(player.X + vx, player.Y);
   if (map[indices.I][indices.II] == 0) {
-    player.Y += point.Y;
+    player.X += vx;
+  }
+
+  indices = CoordianceToIndex(player.X, player.Y + vy);
+  if (map[indices.I][indices.II] == 0) {
+    player.Y += vy;
+  }
+
+  player.Angle += player.Turn * dt;
+  if (player.Angle < 0) {
+    player.Angle += 2;
+  }
+  if (player.Angle > 2) {
+    player.Angle -= 2;
   }
 }
 
