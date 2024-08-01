@@ -33,7 +33,7 @@ class Player {
   static RUN_SPEED: number = this.WALK_SPEED;
   static RUN_MAX_SPEED: number = 0.4;
   static ACCELERATION: number = 5;
-  static TRUN_RATE: number = 0.0001;
+  static TRUN_RATE: number = 0.0005;
 }
 
 (() => {
@@ -153,13 +153,15 @@ function DrawWorld(ctx: CanvasRenderingContext2D, x: number, y: number, angle: n
    *     \   |
    *      \  |
    *       \ |
-   *        \|  x, y 
+   *        \|  x, y
    */
 
   let dh = 0;
   let dv = 0;
+  let oldStyle = ctx.strokeStyle;
+  let oldWidth = ctx.lineWidth;
 
-  // Check the horizontal line
+  // --- Check the horizontal line. ---
   let cot = 1 / Math.tan(PI * angle);
   let dy = 0, dx = 0, dxMax = 0, dyMax = 0;
   let direction = Math.sin(PI * angle);
@@ -180,7 +182,6 @@ function DrawWorld(ctx: CanvasRenderingContext2D, x: number, y: number, angle: n
     dy = y, dx = x; i = 8;
   }
 
-  console.log(y, dy, dy - y, cot, x, dx);
   while (i < 8) {
     if (dx > 0 && dx < MAP_MAX_WIDTH && dy > 0 && dy < MAP_MAX_WIDTH) {
       let indices = CoordianceToIndex(dx, dy);
@@ -193,17 +194,65 @@ function DrawWorld(ctx: CanvasRenderingContext2D, x: number, y: number, angle: n
     i++;
   }
 
-  let oldStyle = ctx.strokeStyle;
-  ctx.scale(0.4, 0.4);
-  ctx.translate(30, 30);
-  ctx.beginPath()
-  ctx.strokeStyle = "green";
-  ctx.moveTo(x, y);
-  ctx.lineTo(dx, dy);
-  ctx.stroke();
+  if (ShouldShowMap) {
+    ctx.scale(0.4, 0.4);
+    ctx.translate(30, 30);
+    ctx.beginPath()
+    ctx.strokeStyle = "green";
+    ctx.lineWidth = 20;
+    ctx.moveTo(x, y);
+    ctx.lineTo(dx, dy);
+    ctx.stroke();
+    ctx.resetTransform();
+  }
+
+  // --- Check the vertical line. ---
+  dx = 0, dy = 0, dxMax = 0, dyMax = 0;
+  direction = Math.cos(PI * angle);
+  let tan = Math.tan(PI * angle);
+  i = Math.trunc(x / MAP_EACH_WIDTH);
+  if (direction > 0) { // look right
+    dx = i * MAP_EACH_WIDTH + MAP_EACH_WIDTH;
+    dy = (dx - x) * tan + y;
+    dxMax = MAP_EACH_WIDTH;
+    dyMax = dxMax * tan;
+    i = 0;
+  } else if (direction < 0) { // look left
+    dx = i * MAP_EACH_WIDTH - 0.0001;
+    dy = (dx - x) * tan + y;
+    dxMax = -MAP_EACH_WIDTH;
+    dyMax = dxMax * tan;
+    i = 0;
+  } else {
+    dy = y, dx = x; i = 8;
+  }
+
+  while (i < 8) {
+    if (dx > 0 && dx < MAP_MAX_WIDTH && dy > 0 && dy < MAP_MAX_WIDTH) {
+      let indices = CoordianceToIndex(dx, dy);
+      if (map[indices.I][indices.II] == 1) {
+        break;
+      }
+    }
+
+    dx += dxMax, dy += dyMax;
+    i++;
+  }
+
+  if (ShouldShowMap) {
+    ctx.scale(0.4, 0.4);
+    ctx.translate(30, 30);
+    ctx.beginPath()
+    ctx.strokeStyle = "blue";
+    ctx.lineWidth = 5;
+    ctx.moveTo(x, y);
+    ctx.lineTo(dx, dy);
+    ctx.stroke();
+    ctx.resetTransform();
+  }
+
   ctx.strokeStyle = oldStyle;
-  ctx.resetTransform();
-  // Check hte vertical line
+  ctx.lineWidth = oldWidth;
 }
 
 function ValidatePlayer(player: Player, dt: number) {
