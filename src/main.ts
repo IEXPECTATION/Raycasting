@@ -1,9 +1,7 @@
 const MAP_MAX_HEIGHT = 800, MAP_MAX_WIDTH = 800;
 const MAP_EACH_HEIGHT = 100, MAP_EACH_WIDTH = 100;
 const PI = Math.PI;
-const ONE_SECOND_PI = Math.PI / 2;
-const TWO_THIRD_PI = Math.PI * 3 / 2;
-const TWO_PI = Math.PI * 2;
+const COEFFICIENT_UNIT = 2 / 360;
 let ShouldShowMap = true;
 
 const map = [
@@ -25,7 +23,7 @@ class Player {
 
   X: number;
   Y: number;
-  Angle: number = 0;  // min: 0, max: 2
+  Coefficient: number = 0;  // min: 0, max: 2
   Velocity: number = 0;
   Turn: number = 0;
 
@@ -111,16 +109,16 @@ function UpdateScreen(ctx: CanvasRenderingContext2D, keyStatus: Set<string>, pla
     ctx.resetTransform()
   }
 
-  DrawWorld(ctx, player.X, player.Y, player.Angle);
+  DrawWorld(ctx, player.X, player.Y, player.Coefficient);
 
   requestAnimationFrame(() => {
     UpdateScreen(ctx, keyStatus, player, date);
   });
 }
 
-function RotatePoint(x: number, y: number, angle: number): { X: number, Y: number } {
-  let newX = x * Math.cos(PI * angle) - y * Math.sin(PI * angle);
-  let newY = x * Math.sin(PI * angle) + y * Math.cos(PI * angle);
+function RotatePoint(x: number, y: number, coefficient: number): { X: number, Y: number } {
+  let newX = x * Math.cos(PI * coefficient) - y * Math.sin(PI * coefficient);
+  let newY = x * Math.sin(PI * coefficient) + y * Math.cos(PI * coefficient);
   return { X: newX, Y: newY };
 }
 
@@ -132,12 +130,12 @@ function DrawPlayer(ctx: CanvasRenderingContext2D, player: Player) {
   ctx.strokeStyle = 'red';
   ctx.lineWidth = 8;
 
-  let left = RotatePoint(0, -20, player.Angle);
-  let right = RotatePoint(0, 20, player.Angle);
+  let left = RotatePoint(0, -20, player.Coefficient);
+  let right = RotatePoint(0, 20, player.Coefficient);
   ctx.moveTo(left.X + player.X, left.Y + player.Y);
   ctx.lineTo(right.X + player.X, right.Y + player.Y);
   ctx.stroke();
-  right = RotatePoint(25, 0, player.Angle);
+  right = RotatePoint(25, 0, player.Coefficient);
   ctx.moveTo(player.X, player.Y);
   ctx.lineTo(right.X + player.X, right.Y + player.Y);
   ctx.stroke();
@@ -146,109 +144,114 @@ function DrawPlayer(ctx: CanvasRenderingContext2D, player: Player) {
   ctx.lineWidth = oldWidth;
 }
 
-function DrawWorld(ctx: CanvasRenderingContext2D, x: number, y: number, angle: number): void {
-  /**
-   * dx, dy
-   *    ------
-   *     \   |
-   *      \  |
-   *       \ |
-   *        \|  x, y
-   */
+function FixCoefficient(coefficient: number): number {
+  if (coefficient > 2) {
+    return coefficient - 2;
+  } else if (coefficient < 0) {
+    return coefficient + 2;
+  } else {
+    return coefficient;
+  }
+}
 
-  let dh = 0;
-  let dv = 0;
+function Distance(x: number, y: number, coefficient: number): number {
+  return Math.cos(PI * coefficient) * x + Math.sin(PI * coefficient) * y;
+}
+
+function DrawWorld(ctx: CanvasRenderingContext2D, x: number, y: number, coefficient: number): void {
   let oldStyle = ctx.strokeStyle;
   let oldWidth = ctx.lineWidth;
-
-  // --- Check the horizontal line. ---
-  let cot = 1 / Math.tan(PI * angle);
-  let dy = 0, dx = 0, dxMax = 0, dyMax = 0;
-  let direction = Math.sin(PI * angle);
-  let i = Math.trunc(y / MAP_EACH_HEIGHT);
-  if (direction > 0) { // look down
-    dy = i * MAP_EACH_HEIGHT + MAP_EACH_HEIGHT;
-    dx = (dy - y) * cot + x;
-    dyMax = MAP_EACH_HEIGHT;
-    dxMax = dyMax * cot;
-    i = 0;
-  } else if (direction < 0) { // look up
-    dy = i * MAP_EACH_HEIGHT - 0.0001;
-    dx = (dy - y) * cot + x;
-    dyMax = -MAP_EACH_HEIGHT;
-    dxMax = dyMax * cot;
-    i = 0;
-  } else {
-    dy = y, dx = x; i = 8;
-  }
-
-  while (i < 8) {
-    if (dx > 0 && dx < MAP_MAX_WIDTH && dy > 0 && dy < MAP_MAX_WIDTH) {
-      let indices = CoordianceToIndex(dx, dy);
-      if (map[indices.I][indices.II] == 1) {
-        break;
-      }
+  let dh = 0;
+  let dv = 0;
+  let dxMin = 0;
+  let dyMin = 0;
+  for (let cof = coefficient - 30 * COEFFICIENT_UNIT; cof < coefficient + 30 * COEFFICIENT_UNIT; cof += COEFFICIENT_UNIT) {
+    // --- Check the horizontal line. ---
+    let cot = 1 / Math.tan(PI * cof);
+    let dy = 0, dx = 0, dxMax = 0, dyMax = 0;
+    let direction = Math.sin(PI * cof);
+    let i = Math.trunc(y / MAP_EACH_HEIGHT);
+    if (direction > 0) { // look down
+      dy = i * MAP_EACH_HEIGHT + MAP_EACH_HEIGHT;
+      dx = (dy - y) * cot + x;
+      dyMax = MAP_EACH_HEIGHT;
+      dxMax = dyMax * cot;
+      i = 8 - i;
+    } else if (direction < 0) { // look up
+      dy = i * MAP_EACH_HEIGHT - 0.0001;
+      dx = (dy - y) * cot + x;
+      dyMax = -MAP_EACH_HEIGHT;
+      dxMax = dyMax * cot;
+    } else {
+      dy = y, dx = x; i = 8;
     }
 
-    dx += dxMax, dy += dyMax;
-    i++;
-  }
-
-  if (ShouldShowMap) {
-    ctx.scale(0.4, 0.4);
-    ctx.translate(30, 30);
-    ctx.beginPath()
-    ctx.strokeStyle = "green";
-    ctx.lineWidth = 20;
-    ctx.moveTo(x, y);
-    ctx.lineTo(dx, dy);
-    ctx.stroke();
-    ctx.resetTransform();
-  }
-
-  // --- Check the vertical line. ---
-  dx = 0, dy = 0, dxMax = 0, dyMax = 0;
-  direction = Math.cos(PI * angle);
-  let tan = Math.tan(PI * angle);
-  i = Math.trunc(x / MAP_EACH_WIDTH);
-  if (direction > 0) { // look right
-    dx = i * MAP_EACH_WIDTH + MAP_EACH_WIDTH;
-    dy = (dx - x) * tan + y;
-    dxMax = MAP_EACH_WIDTH;
-    dyMax = dxMax * tan;
-    i = 0;
-  } else if (direction < 0) { // look left
-    dx = i * MAP_EACH_WIDTH - 0.0001;
-    dy = (dx - x) * tan + y;
-    dxMax = -MAP_EACH_WIDTH;
-    dyMax = dxMax * tan;
-    i = 0;
-  } else {
-    dy = y, dx = x; i = 8;
-  }
-
-  while (i < 8) {
-    if (dx > 0 && dx < MAP_MAX_WIDTH && dy > 0 && dy < MAP_MAX_WIDTH) {
-      let indices = CoordianceToIndex(dx, dy);
-      if (map[indices.I][indices.II] == 1) {
-        break;
+    while (i-- > 0) {
+      if (dx > 0 && dx < MAP_MAX_WIDTH && dy > 0 && dy < MAP_MAX_WIDTH) {
+        let indices = CoordianceToIndex(dx, dy);
+        if (map[indices.I][indices.II] == 1) {
+          break;
+        }
       }
+
+      dx += dxMax, dy += dyMax;
     }
 
-    dx += dxMax, dy += dyMax;
-    i++;
-  }
+    dh = Distance(dx - x, dy - y, cof);
+    dxMin = dx;
+    dyMin = dy;
+    // console.log("dh:", dh);
 
-  if (ShouldShowMap) {
-    ctx.scale(0.4, 0.4);
-    ctx.translate(30, 30);
-    ctx.beginPath()
-    ctx.strokeStyle = "blue";
-    ctx.lineWidth = 5;
-    ctx.moveTo(x, y);
-    ctx.lineTo(dx, dy);
-    ctx.stroke();
-    ctx.resetTransform();
+    // --- Check the vertical line. ---
+    dx = 0, dy = 0, dxMax = 0, dyMax = 0;
+    direction = Math.cos(PI * cof);
+    let tan = Math.tan(PI * cof);
+    i = Math.trunc(x / MAP_EACH_WIDTH);
+    if (direction > 0) { // look right
+      dx = i * MAP_EACH_WIDTH + MAP_EACH_WIDTH;
+      dy = (dx - x) * tan + y;
+      dxMax = MAP_EACH_WIDTH;
+      dyMax = dxMax * tan;
+      i = 8 - i;
+    } else if (direction < 0) { // look left
+      dx = i * MAP_EACH_WIDTH - 0.0001;
+      dy = (dx - x) * tan + y;
+      dxMax = -MAP_EACH_WIDTH;
+      dyMax = dxMax * tan;
+    } else {
+      dy = y, dx = x; i = 8;
+    }
+
+    while (i-- > 0) {
+      if (dx > 0 && dx < MAP_MAX_WIDTH && dy > 0 && dy < MAP_MAX_WIDTH) {
+        let indices = CoordianceToIndex(dx, dy);
+        if (map[indices.I][indices.II] == 1) {
+          break;
+        }
+      }
+
+      dx += dxMax, dy += dyMax;
+    }
+
+    dv = Distance(dx - x, dy - y, cof);
+
+    ctx.strokeStyle = "rgb(230  0  0)";
+    if (dv < dh) {
+      dxMin = dx;
+      dyMin = dy;
+      ctx.strokeStyle = "rgb(189  0  0)";
+    }
+    // console.log("dv:", dv);
+
+    if (ShouldShowMap) {
+      ctx.scale(0.4, 0.4);
+      ctx.translate(30, 30);
+      ctx.beginPath()
+      ctx.moveTo(x, y);
+      ctx.lineTo(dxMin, dyMin);
+      ctx.stroke();
+      ctx.resetTransform();
+    }
   }
 
   ctx.strokeStyle = oldStyle;
@@ -257,8 +260,8 @@ function DrawWorld(ctx: CanvasRenderingContext2D, x: number, y: number, angle: n
 
 function ValidatePlayer(player: Player, dt: number) {
   let displacement = player.Velocity * dt;
-  let vx = displacement * Math.cos(PI * player.Angle);
-  let vy = displacement * Math.sin(PI * player.Angle);
+  let vx = displacement * Math.cos(PI * player.Coefficient);
+  let vy = displacement * Math.sin(PI * player.Coefficient);
 
   // collision detection
   let indices = CoordianceToIndex(player.X + vx, player.Y);
@@ -271,12 +274,12 @@ function ValidatePlayer(player: Player, dt: number) {
     player.Y += vy;
   }
 
-  player.Angle += player.Turn * dt;
-  if (player.Angle < 0) {
-    player.Angle += 2;
+  player.Coefficient += player.Turn * dt;
+  if (player.Coefficient < 0) {
+    player.Coefficient += 2;
   }
-  if (player.Angle > 2) {
-    player.Angle -= 2;
+  if (player.Coefficient > 2) {
+    player.Coefficient -= 2;
   }
 }
 
