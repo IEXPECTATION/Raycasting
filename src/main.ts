@@ -261,12 +261,7 @@ function DrawWorld(ctx: CanvasRenderingContext2D, player: Player): void {
     rays.push([dxMin, dyMin, color]);
 
     // --- Draw the 3D wall. ---
-    let da = (coefficient - cof);
-    if (da < 0) {
-      da += 2;
-    } else if (da > 2) {
-      da -= 2;
-    }
+    let da = FixCoefficient(coefficient - cof);
     dh = dh * Math.cos(PI * da);
 
     let lineHeight = 800 * 80 / dh;
