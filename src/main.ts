@@ -175,9 +175,7 @@ function DrawWorld(ctx: CanvasRenderingContext2D, player: Player): void {
   let color = "";
   let rays: [number, number, string][] = [];
 
-
-
-  for (let cof = coefficient - 30 * COEFFICIENT_UNIT; cof < coefficient + 30 * COEFFICIENT_UNIT; cof += COEFFICIENT_UNIT) {
+  for (let cof = coefficient - 30 * COEFFICIENT_UNIT; cof < coefficient + 30 * COEFFICIENT_UNIT; cof += COEFFICIENT_UNIT / 10) {
     // --- Check the horizontal line. ---
     let cot = 1 / Math.tan(PI * cof);
     let dy = 0, dx = 0, dxMax = 0, dyMax = 0;
@@ -261,18 +259,16 @@ function DrawWorld(ctx: CanvasRenderingContext2D, player: Player): void {
     rays.push([dxMin, dyMin, color]);
 
     // --- Draw the 3D wall. ---
-    let da = FixCoefficient(coefficient - cof);
-    dh = dh * Math.cos(PI * da);
+    dh = dh * Math.cos(PI * FixCoefficient(coefficient - cof));
 
     let lineHeight = 800 * 80 / dh;
-    ctx.fillRect(drawIndicator * PIXEL_PER_DEGREE, -lineHeight / 2 + 800 / 2, PIXEL_PER_DEGREE, lineHeight);
+    ctx.fillRect(drawIndicator * PIXEL_PER_DEGREE / 10, -lineHeight / 2 + 800 / 2, Math.ceil(PIXEL_PER_DEGREE / 10), lineHeight);
 
     // Move the horizontal line up.
     // let start = 400 - 30 * (Math.tan(PI / 6) / dh) * 800;
     // let end = 400 + 170 * (Math.tan(PI / 6) / dh) * 800;
     // ctx.fillRect(drawIndicator * PIXEL_PER_DEGREE, start, PIXEL_PER_DEGREE, end - start);
     drawIndicator++;
-
   }
 
   ctx.lineWidth = oldLineWidth;
