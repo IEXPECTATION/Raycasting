@@ -11,6 +11,10 @@ A simple repo for learning raycast.
 
 Open index.html in the browser, or start an HTTP server to serve it.
 
+## Demo
+
+![demo](./images/raycast_demo.png)
+
 ## What's the next (Maybe)?
 
 1. Change to DDA algorithm for collision detection.
