@@ -96,6 +96,28 @@ function DrawMap(ctx: CanvasRenderingContext2D) {
   }
 }
 
+
+class FPSCalculater {
+  static averageFps = 0;
+  static firstFrame = true;
+  static factor = 1 / 100;
+
+  static CalculateFPS(ctx: CanvasRenderingContext2D, dt: number) {
+
+    if (FPSCalculater.firstFrame) {
+      FPSCalculater.averageFps = dt;
+      FPSCalculater.firstFrame = false;
+    }
+    else {
+      FPSCalculater.averageFps = FPSCalculater.averageFps * (1 - FPSCalculater.factor) + dt * FPSCalculater.factor;
+    }
+
+    let fps = (1.0 / FPSCalculater.averageFps * 1000);
+
+    ctx.fillText(`FPS: ${fps}`, 10, 10);
+  }
+}
+
 function UpdateScreen(ctx: CanvasRenderingContext2D, keyStatus: Set<string>, player: Player, oldDate: number) {
   ctx.clearRect(0, 0, MAP_MAX_WIDTH, MAP_MAX_HEIGHT);
 
@@ -107,7 +129,7 @@ function UpdateScreen(ctx: CanvasRenderingContext2D, keyStatus: Set<string>, pla
   DrawWorld(ctx, player);
 
   // Show the FPS.
-  ctx.fillText(`FPS: ${Math.trunc(1000 / dt)}`, 10, 10);
+  FPSCalculater.CalculateFPS(ctx, dt);
 
   requestAnimationFrame(() => {
     UpdateScreen(ctx, keyStatus, player, date);
